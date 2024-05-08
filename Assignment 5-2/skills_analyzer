@@ -1,0 +1,228 @@
+#importing the libraries
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+#loading the data
+df = pd.read_csv('sample_data/processed_data.csv')
+df.head()
+df.shape
+df.isnull().sum()
+df.dropna(axis=0, inplace=True)
+
+#checking for null values
+df.isnull().sum()
+df.dtypes
+
+#unique values in each column
+df.nunique()
+df['Job Role Title'].unique()
+def categorize_job_title(job_title):
+    job_title = str(job_title).lower()
+    if 'software' in job_title or 'developer' in job_title:
+        return 'Software/Developer'
+    elif 'data' in job_title or 'analyst' in job_title or 'scientist' in job_title:
+        return 'Data Analyst/Scientist'
+    elif 'manager' in job_title or 'director' in job_title or 'vp' in job_title:
+        return 'Manager/Director/VP'
+    elif 'sales' in job_title or 'representative' in job_title:
+        return 'Sales'
+    elif 'marketing' in job_title or 'social media' in job_title:
+        return 'Marketing/Social Media'
+    elif 'product' in job_title or 'designer' in job_title:
+        return 'Product/Designer'
+    elif 'hr' in job_title or 'human resources' in job_title:
+        return 'HR/Human Resources'
+    elif 'financial' in job_title or 'accountant' in job_title:
+        return 'Financial/Accountant'
+    elif 'project manager' in job_title:
+        return 'Project Manager'
+    elif 'it' in job_title or 'support' in job_title:
+        return 'IT/Technical Support'
+    elif 'operations' in job_title or 'supply chain' in job_title:
+        return 'Operations/Supply Chain'
+    elif 'customer service' in job_title or 'receptionist' in job_title:
+        return 'Customer Service/Receptionist'
+    else:
+        return 'Other'
+
+df['Job Title'] = df['Job Title'].apply(categorize_job_title)
+#descriptive statistics
+df.describe()
+import pandas as pd
+
+df = pd.read_feather("//media/data/mbti-reddit/disprop_sample100k_total.feather") #change this to proper path
+#'/content/drive/MyDrive/Colab Notebooks/clickbait_hold_X.csv'
+df=df.drop(columns=['authors','subreddit'])
+
+df=df.sample(80000, random_state=1) #random sampling
+
+
+df['labels'] = df['labels'].replace(['INTP','ISTP','ENTP','ESTP','INFP','ISFP','ENFP','ESFP', \
+                                     'INTJ','ISTJ','ENTJ','ESTJ','INFJ','ISFJ','ENFJ','ESFJ'], \
+                                    [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
+df=df.rename(columns={'labels':'labels','comments':'text'})
+
+from datasets import Dataset
+
+dataset = Dataset.from_pandas(df)
+dataset.shuffle(seed=27)
+split_set = dataset.train_test_split(test_size=0.2)
+
+from transformers import AlbertTokenizer, AlbertModel
+
+tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
+
+from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer
+
+model = AutoModelForSequenceClassification.from_pretrained("albert-base-v2", num_labels=16)
+
+
+def preprocess_function(examples):
+    return tokenizer(examples["text"], truncation=True)
+
+tokenized_dataset = split_set.map(preprocess_function, batched=True)
+
+
+from transformers import DataCollatorWithPadding
+#tokenized_datasets = tokenized_datasets.remove_columns(books_dataset["train"].column_names)
+data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+
+
+import evaluate
+import numpy as np
+def compute_metrics(eval_preds):
+    metric = evaluate.combine([
+
+    evaluate.load("precision"),
+    evaluate.load("recall")])
+
+
+    #evaluate.load("precision", average="weighted"),
+    #evaluate.load("recall", average="weighted")])
+
+    logits, labels = eval_preds
+    predictions = np.argmax(logits, axis=-1)
+    return metric.compute(predictions=predictions, references=labels, average='weighted')
+
+
+training_args = TrainingArguments(
+
+    evaluation_strategy="epoch",
+    #save_strategy="epoch",
+
+    output_dir="/home/deimann/mbti-project/balanced_train",
+
+    #save_total_limit=5,
+    #load_best_model_at_end = True,
+
+    learning_rate=2e-5,#2e
+
+    per_device_train_batch_size=36  ,#16
+
+    per_device_eval_batch_size=16,#16
+
+    num_train_epochs=10,
+
+    weight_decay=0.01,
+
+)
+
+trainer = Trainer(
+
+    model=model,
+
+    args=training_args,
+
+    train_dataset=tokenized_dataset["train"],
+
+    eval_dataset=tokenized_dataset["test"],
+
+    tokenizer=tokenizer,
+
+    data_collator=data_collator,
+
+    #compute_metrics=compute_metrics,
+
+)
+
+trainer.train()
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load the CSV file into a Pandas DataFrame
+df = pd.read_csv('sample_data/processed_data.csv')
+
+# Display the first few rows of the DataFrame to understand its structure
+print(df.head())
+
+# Assuming your CSV has columns 'Job Role' and 'Skills', you can plot a bar chart
+# to show the count of skills required for each job role for the first 10 items
+
+# Count the number of skills for each job role
+skills_count = df.groupby('Job Role Title')['Skills Required'].count().reset_index()
+
+# Sort by the count of skills in descending order and select the top 10
+skills_count_top10 = skills_count.sort_values(by='Skills Required', ascending=False).head(10)
+
+# Plotting using Matplotlib
+plt.figure(figsize=(10, 6))
+plt.barh(skills_count_top10['Job Role Title'], skills_count_top10['Skills Required'])
+plt.xlabel('Number of Skills')
+plt.ylabel('Job Role Title')
+plt.title('Top 10 Job Roles by Number of Skills Required')
+plt.tight_layout()
+plt.show()
+
+# You can also use Seaborn for a more visually appealing plot
+plt.figure(figsize=(10, 6))
+sns.barplot(x='Skills Required', y='Job Role Title', data=skills_count_top10)
+plt.xlabel('Number of Skills')
+plt.ylabel('Job Role')
+plt.title('Top 10 Job Roles by Number of Skills Required')
+plt.tight_layout()
+plt.show()
+
+
+pip install wordcloud
+
+import pandas as pd
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+
+# Load the CSV file into a Pandas DataFrame
+df = pd.read_csv('sample_data/processed_data.csv')
+
+# Concatenate all skills into a single string
+all_skills_text = ' '.join(df['Skills Required'])
+
+# Generate the word cloud
+wordcloud = WordCloud(width=800, height=400, background_color='white').generate(all_skills_text)
+
+# Plot the word cloud
+plt.figure(figsize=(10, 6))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis('off')
+plt.title('Word Cloud of Job Skills')
+plt.show()
+
+from transformers import BertTokenizer, BertModel, XLNetTokenizer, XLNetModel
+
+# Initialize BERT tokenizer and model
+bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+bert_model = BertModel.from_pretrained('bert-base-uncased')
+
+# Initialize XLNet tokenizer and model
+xlnet_tokenizer = XLNetTokenizer.from_pretrained('xlnet-base-cased')
+xlnet_model = XLNetModel.from_pretrained('xlnet-base-cased')
+
+# Tokenize input text for BERT and XLNet
+input_text = "Example input text for tokenization."
+bert_input = bert_tokenizer(input_text, return_tensors='pt')
+xlnet_input = xlnet_tokenizer(input_text, return_tensors='pt')
+
+# Get BERT and XLNet embeddings
+bert_output = bert_model(**bert_input)
+xlnet_output = xlnet_model(**xlnet_input)
